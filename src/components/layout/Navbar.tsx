@@ -17,27 +17,32 @@ export default function Navbar() {
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false); }, [location]);
 
-  const navLinks = [
-    { label: 'Home',         to: '/' },
-    {
-      label: 'Explore',
-      onClick: () => {
-        if (location.pathname !== "/") {
-          navigate("/");
-          setTimeout(() => {
-            document
-              .getElementById("top-salons")
-              ?.scrollIntoView({ behavior: "smooth" });
-          }, 100);
-        } else {
+ const navLinks = [
+  { label: 'Home', to: '/' },
+  { label: "Search", to: "/search" },
+
+  {
+    label: 'Explore',
+    onClick: () => {
+      if (location.pathname !== "/") {
+        navigate("/");
+        setTimeout(() => {
           document
             .getElementById("top-salons")
             ?.scrollIntoView({ behavior: "smooth" });
-        }
-      },
+        }, 100);
+      } else {
+        document
+          .getElementById("top-salons")
+          ?.scrollIntoView({ behavior: "smooth" });
+      }
     },
-    { label: 'AI Concierge', to: '/concierge' },
-  ];
+  },
+
+  { label: 'AI Concierge', to: '/concierge' },
+
+  { label: 'Compare', to: '/compare' },
+];
 
   const isActive = (to: string) => location.pathname === to;
 

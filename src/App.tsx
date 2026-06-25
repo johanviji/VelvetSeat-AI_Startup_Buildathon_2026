@@ -7,6 +7,8 @@ import Home from './pages/Home';
 import SalonProfile from './pages/SalonProfile';
 import AIConcierge from './pages/AIConcierge';
 import BookingConfirmation from './pages/BookingConfirmation';
+import Compare from './pages/Compare';
+import Search from "./pages/Search";
 
 export default function App() {
   const [salons, setSalons] = useState<any[]>([]);
@@ -42,6 +44,10 @@ export default function App() {
           <Route path="/salon/:id" element={<SalonProfile />} />
           <Route path="/concierge" element={<AIConcierge />} />
           <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+          <Route path="/search" element={<Search />} />
+
+
+          <Route path="/compare" element={<Compare />} />
         </Routes>
       </div>
     </BrowserRouter>
