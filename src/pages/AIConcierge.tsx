@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Crown, Send, Sparkles, Heart, Leaf, Scissors } from 'lucide-react';
+import { supabase } from "../lib/supabase";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -46,42 +47,120 @@ export default function AIConcierge() {
     }
   }, [isTyping]);
 
-  const generateResponse = (userMessage: string): string => {
-    const msg = userMessage.toLowerCase();
-    if (msg.includes('bridal') || msg.includes('wedding')) {
-      return 'For bridal services in Bangalore, I highly recommend The Bridal Studio in Koramangala and Aura Bridal Studio in Indiranagar. They specialize in stunning Indian bridal looks with packages starting from ₹15,000. Would you like me to show you their portfolios or help you book a trial session?';
-    }
-    if (msg.includes('hair spa') || msg.includes('relaxing') || msg.includes('spa')) {
-      return 'Looking for relaxation? Luxe Salon & Spa in Indiranagar offers an incredible aromatherapy hair spa experience - their 75-minute treatment is pure bliss at ₹2,500. Silk & Shine in Jayanagar also has beautiful organic spa treatments. Should I check availability for this weekend?';
-    }
-    if (msg.includes('balayage') || msg.includes('color') || msg.includes('hair color')) {
-      return 'For beautiful balayage and color work, Mane Attraction in JP Nagar is exceptional - their artists create the most natural, sun-kissed looks from ₹6,000. The Crown Jewel on MG Road offers premium color services for a luxury experience. What shade are you dreaming of?';
-    }
-    if (msg.includes('quick') || msg.includes('haircut') || msg.includes('efficient')) {
-      return 'For quick, efficient services, Radiance Beauty Lounge in HSR Layout offers express haircuts from just ₹800 with same-day appointments available. Serendipity Salon is also great for when you need to look your best in a hurry. When would you like to visit?';
-    }
-    if (msg.includes('nail') || msg.includes('manicure') || msg.includes('pedicure')) {
-      return 'Velvet Touch in Koramangala is your destination for stunning nail art - from gel extensions to intricate crystal designs starting at ₹2,000. Glow & Co. in Whitefield also offers great manicure services. Looking for something specific?';
-    }
-    if (msg.includes('grooming') || msg.includes('men')) {
-      return 'For mens grooming, Glow & Co. in Whitefield offers a premium grooming package with haircut, beard trim, and facial from ₹2,500. The experience is luxurious and efficient. Want me to find an appointment?';
-    }
-    if (msg.includes('facial') || msg.includes('skincare') || msg.includes('skin')) {
-      return 'For glowing skin, Glow & Co. offers the rejuvenating Diamond Facial at ₹5,000 and HydraFacial from ₹3,500. If you prefer organic treatments, Silk & Shine has a wonderful herbal facial at ₹2,000. What is your skin type or concern?';
-    }
-    if (msg.includes('indiranagar')) {
-      return 'Indiranagar has some gems! Luxe Salon & Spa is the premium choice for bridal and hair services. Aura Bridal Studio specializes in wedding looks. Radiance Beauty Lounge offers affordable luxury. What service are you looking for?';
-    }
-    if (msg.includes('koramangala')) {
-      return 'Koramangala offers amazing options - The Bridal Studio is renowned for bridal work, Velvet Touch has beautiful nail art, and The Crown Jewel is perfect for celebrity-level experiences. What brings you here today?';
-    }
-    if (msg.includes('hello') || msg.includes('hi') || msg.includes('hey')) {
-      return 'Hello! I am delighted to help you find the perfect salon experience in Bangalore. Tell me about your preferences - are you looking for bridal services, a relaxing spa day, a new hairstyle, or something else entirely?';
-    }
-    return 'That sounds lovely! Based on what you have shared, I would recommend exploring Luxe Salon & Spa in Indiranagar or The Crown Jewel on MG Road for a premium experience. Would you like me to show you available services and help you book? Or tell me more about what you are looking for!';
+  const generateResponse = async (userMessage: string): Promise<string> => {
+    const query = userMessage.toLowerCase();
+
+    const { data: salons } = await supabase
+      .from("salons")
+      .select("*");
+
+    const { data: services } = await supabase
+      .from("services")
+      .select("*");
+
+    if (!salons || !services)
+      return "I couldn't access the salon database.";
+
+    const scored = salons.map((salon) => {
+      let score = salon.rating * 10;
+
+      const salonServices = services.filter(
+        (s) => s.salon_id === salon.id
+      );
+
+      //-----------------------------------
+      // CATEGORY
+      //-----------------------------------
+
+      if (query.includes("hair")) {
+        if (salonServices.some((s) => s.category === "hair"))
+          score += 40;
+      }
+
+      if (query.includes("bridal") || query.includes("wedding")) {
+        if (salonServices.some((s) => s.category === "bridal"))
+          score += 40;
+      }
+
+      if (query.includes("skin") || query.includes("facial")) {
+        if (salonServices.some((s) => s.category === "skin"))
+          score += 40;
+      }
+
+      if (query.includes("nail")) {
+        if (salonServices.some((s) => s.category === "nail"))
+          score += 40;
+      }
+
+      //-----------------------------------
+      // LOCATION
+      //-----------------------------------
+
+      if (
+        salon.neighborhood &&
+        query.includes(salon.neighborhood.toLowerCase())
+      )
+        score += 25;
+
+      //-----------------------------------
+      // BUDGET
+      //-----------------------------------
+
+      const prices = salonServices.map((s) => s.price);
+
+      if (prices.length) {
+        const avg =
+          prices.reduce((a, b) => a + b, 0) /
+          prices.length;
+
+        const budget =
+          query.match(/\d+/)?.[0];
+
+        if (budget) {
+          if (avg <= Number(budget))
+            score += 20;
+        }
+      }
+
+    return {
+      salon,
+      score,
+    };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const top = scored.slice(0, 3);
+
+  let response = `✨ Based on your preferences, I found these salons for you.\n`;
+
+  top.forEach((item) => {
+    const salonServices = services
+      .filter((s) => s.salon_id === item.salon.id)
+      .slice(0, 3);
+    response += `
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ⭐ ${item.salon.name}
+  📍 Location: ${item.salon.neighborhood}
+  ⭐ Rating: ${item.salon.rating} ★
+  💎 Why I recommend it
+  ${item.salon.ai_summary}
+  ✨ Popular Services
+  ${salonServices
+    .map((s) => `• ${s.name} — ₹${s.price}`)
+    .join("\n")}
+  `;
+  });
+  response += `
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━
+  💬 Would you like recommendations for a different budget, location, or service?
+  `;
+  return response;
+
+    
   };
 
-  const handleSend = (messageText?: string) => {
+  const handleSend = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text) return;
 
@@ -90,10 +169,11 @@ export default function AIConcierge() {
     setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      const reply = await generateResponse(text);
       const response: Message = {
-        role: 'assistant',
-        content: generateResponse(text),
+          role: "assistant",
+          content: reply,
       };
       setMessages((prev) => [...prev, response]);
       setIsTyping(false);
@@ -145,7 +225,9 @@ export default function AIConcierge() {
                     <span className="text-[#C9A84C] text-xs font-medium">AI</span>
                   </div>
                 )}
-                <p className="text-sm leading-relaxed">{msg.content}</p>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {msg.content}
+                </div>
               </div>
             </div>
           ))}
